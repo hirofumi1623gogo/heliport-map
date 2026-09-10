@@ -1,5 +1,5 @@
 <!DOCTYPE html><html lang="ja"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
-<title>岩国地区消防組合 場外離着陸場マップ V4</title>
+<title>岩国地区消防組合 場外離着陸場マップ V5</title>
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 <style>
@@ -12,6 +12,11 @@ html,body{margin:0;height:100%;font-family:system-ui,"Hiragino Sans","Noto Sans 
 #list{overflow:auto;flex:1}
 .item{padding:8px 12px;border-bottom:1px solid #eee;cursor:pointer;font-size:13px}
 .item:hover{background:#fff3e0}.item b{display:block}.item span{color:#666;font-size:11px}
+.item{display:flex;align-items:center;gap:6px}.item .txt{flex:1;min-width:0}.item .txt b{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.pin{flex:none;width:34px;height:34px;border:0;background:none;border-radius:50%;font-size:17px;color:#bbb;cursor:pointer;line-height:1;-webkit-tap-highlight-color:transparent}
+.pin:active{background:#eee}.item.pinned{background:#fff8e1}.item.pinned .pin{color:#e65100}.item.pinned:hover{background:#ffecb3}
+.sec{padding:5px 12px;font-size:11px;font-weight:700;color:#8d6e63;background:#fff3e0;border-bottom:1px solid #ffe0b2;letter-spacing:.05em}
+.sec.all{color:#666;background:#f0f0f0;border-bottom-color:#e0e0e0}
 #map{flex:1}
 .pop{font-size:12px;line-height:1.5;max-width:280px}.pop h3{margin:0 0 4px;font-size:14px;color:#b71c1c}
 .pop a.btn{display:inline-block;margin:6px 4px 0 0;padding:5px 9px;background:#1a73e8;color:#fff;border-radius:4px;text-decoration:none;font-size:12px}
@@ -88,8 +93,28 @@ S.forEach(s=>{
    .bindTooltip(s.gps+' '+s.name).bindPopup(h,{maxWidth:320});
 });
 const list=document.getElementById('list');
-function render(f){ list.innerHTML=''; S.filter(s=>!f||(s.gps+s.name+s.addr).includes(f)).forEach(s=>{
- const d=document.createElement('div');d.className='item';d.innerHTML=`<b>${s.gps} ${s.name}</b><span>${s.city}　${v(s.addr)}</span>`;
- d.onclick=()=>{map.setView([s.lat,s.lon],16);markers[s.gps].openPopup();};list.appendChild(d);});}
+// ---- ピン留め（LINEの友だちリストと同様：ピン留めした項目は常に上位。端末ごとに保存） ----
+const PIN_KEY='iwakuni_heli_pins';
+let pins=[];
+try{pins=JSON.parse(localStorage.getItem(PIN_KEY)||'[]');if(!Array.isArray(pins))pins=[];}catch(e){pins=[];}
+function savePins(){try{localStorage.setItem(PIN_KEY,JSON.stringify(pins));}catch(e){}}
+const isPinned=g=>pins.includes(g);
+function togglePin(g){ if(isPinned(g))pins=pins.filter(x=>x!==g); else pins.unshift(g); savePins(); render(curF); }
+let curF='';
+function makeItem(s){
+ const d=document.createElement('div');d.className='item'+(isPinned(s.gps)?' pinned':'');
+ d.innerHTML=`<div class="txt"><b>${s.gps} ${s.name}</b><span>${s.city}　${v(s.addr)}</span></div><button class="pin" type="button" title="${isPinned(s.gps)?'ピン留めを解除':'ピン留め'}" aria-label="ピン留め">📌</button>`;
+ d.querySelector('.txt').onclick=()=>{map.setView([s.lat,s.lon],16);markers[s.gps].openPopup();};
+ d.querySelector('.pin').onclick=ev=>{ev.stopPropagation();togglePin(s.gps);};
+ return d;
+}
+function render(f){ curF=f||''; list.innerHTML='';
+ const hit=S.filter(s=>!curF||(s.gps+s.name+s.addr).includes(curF));
+ const pinned=pins.map(g=>hit.find(s=>s.gps===g)).filter(Boolean);   // ピン留め順（新しいものが上）
+ const rest=hit.filter(s=>!isPinned(s.gps));                          // 通常はGPSコード順のまま
+ if(pinned.length){const h=document.createElement('div');h.className='sec';h.textContent='📌 ピン留め（'+pinned.length+'）';list.appendChild(h);pinned.forEach(s=>list.appendChild(makeItem(s)));
+   const h2=document.createElement('div');h2.className='sec all';h2.textContent='すべて';list.appendChild(h2);}
+ rest.forEach(s=>list.appendChild(makeItem(s)));
+}
 render('');document.getElementById('q').oninput=e=>render(e.target.value.trim());
 </script></body></html>
